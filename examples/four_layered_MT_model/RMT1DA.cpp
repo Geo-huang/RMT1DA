@@ -1,0 +1,101 @@
+/***********************************************************************************
+ //File Name	  : RMT1DA.cpp
+ //Author         : Huang Chen
+ //Version        : 1.1
+ //Copyright      : (C) 2018 Huang Chen, CSU Changsha 
+ //Mail           : csuchenhuang@csu.edu.cn 
+ //Created Time   : 22/03/18 21:36:02
+ //Description    : Analytical solutions for 1D RMT problems in anisotripic media 
+ **********************************************************************************/
+
+#ifndef _RMT1D_A_H
+#define _RMT1D_A_H
+
+#include <vector>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <assert.h>
+#include <cstdlib>
+#include <iomanip>
+#include "as.h"
+
+
+// struct of input parameters
+struct PARAMETERS {
+  unsigned int n_layer;                   // numbers of 1D layers
+  std::vector<std::vector<double> > EP;   // sigma_relative_6_values epsilon_r mu_r d:
+                                          // conductivity(sigma1,sigma2,sigma3,alf,bela,gama)
+					  // relative epsilon (epsilon_r)
+                                          // relative mu (mu_r), 
+					  // (d) depth is from air-earth 
+					  //  interface(z=0) to bottom 
+					  //  of the layer
+  unsigned int n_f;                       // numbers of observation frequencies
+  std::vector <double> f;                 // frequency (Hz)
+};
+
+// a global variable
+PARAMETERS parameter; 
+
+int main(int argc, char** argv)
+{  
+
+  if (argc <2 ) 
+  {
+    printf("Usage: %s input_paramters_filename\n",argv[0]);
+    return 1;    
+  }  
+ 
+  // 1D model parameters
+  std::string input_file(argv[1]);
+  std::ifstream in_stream(input_file.c_str());
+  assert(in_stream.good());
+
+  in_stream >> parameter.n_layer;
+  if(parameter.n_layer<1) 
+  {
+    std::cout<<"Error!, please set n_layer>=1\n";
+    std::abort();
+  }
+  parameter.EP.resize(parameter.n_layer);
+  for(int i=0; i<parameter.n_layer; i++) 
+  {
+    parameter.EP[i].resize(17);
+    for(int j=0; j<17; j++)  
+    {
+      in_stream >> parameter.EP[i][j];
+    }
+  }
+
+  //  observation frequencies
+  in_stream >> parameter.n_f;
+  if(parameter.n_f<1) 
+  {
+    std::cout << "n_f:\t"<<parameter.n_f<<"\n";  
+    std::cout<< "Error!, please set n_f>0 in file:\t" << argv[1];
+    std::cout<<"\n";
+    std::abort();
+  }
+  parameter.f.resize(parameter.n_f);
+  for(int i=0; i<parameter.n_f; i++) 
+    in_stream >> parameter.f[i]; 
+  in_stream.close();
+
+  std::cout << std::setw(11)<< "f" << '\t'
+            << "Rhoxy" << '\t' << "Rhoyx" << '\t' 
+            << "Phixy" << '\t' << "Phiyx" << std::endl;
+  std::ofstream output("results.dat");
+  for(unsigned int i=0; i<parameter.n_f; i++)
+  {
+    AS *rmt;
+    rmt = new AS(parameter.EP, parameter.f[i]);
+    // compute impedance at each layer interface
+    rmt->compute_impedance();
+    rmt->post_process(output);
+    delete rmt;
+  }
+}
+
+
+#endif //_RMT1D_A_H

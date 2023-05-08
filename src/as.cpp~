@@ -1,0 +1,361 @@
+/***********************************************************************************
+ //File Name	  : as.cpp
+ //Author         : Huang Chen
+ //Version        : 1.1
+ //Copyright      : (C) 2018 Huang Chen, CSU Changsha
+ //Mail           : csuchenhuang@csu.edu.cn
+ //Created Time   : 22/03/18 21:36:02
+ //Description    : Analytical solutions for 1D anisotropic RMT problems
+ **********************************************************************************/
+
+#include "as.h"
+
+//------------------------Implementation-uninline functions--------------------
+void AS::post_process(std::ofstream& out)
+{
+  EM::Matrix2D App, Phase;
+  App.setZero();
+  Phase.setZero();
+  double real_Z0=0., imag_Z0=0.;
+  for(unsigned int i=0; i<2; i++)
+  {
+    for(unsigned int j=0; j<2; j++)
+    {
+        App(i,j) = 1./(2*EM::pi*this->f*EM::mu0)*std::abs(Z[0](i,j))*std::abs(Z[0](i,j));
+        // For phase
+	real_Z0 = std::abs(Z[0](i,j).real());
+	imag_Z0 = std::abs(Z[0](i,j).imag());
+	if((real_Z0<TOL)&&(imag_Z0<TOL)) // Z0=0
+	  Phase(i,j) = 0.;
+	else
+          Phase(i,j) = std::atan(Z[0](i,j).imag()/Z[0](i,j).real())/EM::pi*180;
+        if (Z[0](i,j).real()<0.)
+        {
+           if (Z[0](i,j).imag()<0.)
+             Phase(i,j) = Phase(i,j) - 180.0;
+           else
+             Phase(i,j) = Phase(i,j) + 180.0;
+        }
+    }
+  }
+
+  // output electromagnetic responses
+  std::cout << std::setw(16) << this->f << '\t'
+            << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21) << App(0,1) << '\t'
+            << std::setw(21)<< App(1,0)<< '\t' << Phase(0,1) << '\t' <<  Phase(1,0) << std::endl;
+
+  out << setiosflags(std::ios::left) << std::setw(16) << this->f  << '\t'
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << App(0,0) << '\t' 
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << App(0,1) << '\t'
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << App(1,0) << '\t' 
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << App(1,1) << '\t'
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << Phase(0,0)<< '\t' 
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << Phase(0,1)<< '\t'
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << Phase(1,0)<< '\t' 
+      << setiosflags(std::ios::left) << std::setiosflags(std::ios::fixed) << std::setprecision(15)<< std::setw(21)  << Phase(1,1)<< '\n';
+
+}
+
+void AS::compute_impedance()
+{
+  this->Z.resize(N);
+  this->ZN.setZero();
+  Dcomplex q1, q_2, q; // q_2 = 1/q2, q = q1*(1/q2);
+  if(std::abs(this->A[N](1,0))<TOL)
+  {
+    q1 = 0.;
+    q_2 = 0.;
+    q = 0.;
+  }
+  else
+  {
+    q1 = Q1[N];
+    q_2 = 1./Q2[N];
+    q = q1*q_2;
+  }
+  ZN(0,0) = (gama2[N]-gama1[N])*q_2;
+  ZN(0,1) = q*gama1[N]-gama2[N]; 
+  ZN(1,0) = gama1[N]-q*gama2[N];
+  ZN(1,1) = q1*(gama2[N]-gama1[N]);
+  ZN = 1./(gama1[N]*gama2[N]*(q-1.))*ZN;
+  
+  this->Z[N-1] = ZN;
+  if(this->N>1)
+  {
+
+    EM::Dcomplex det = 0.;     // the determinant of matrix (S_HE*Zj + S_HH)
+    EM::Vector6C V;            // vectors used in calculation of det and M;
+    EM::Matrix2C M;            // the matrix of (S_EE*Zj+S_EH)*adjoint(S_HE*Zj+S_HH)
+    V.setZero(); 
+    M.setZero();
+    
+    for(unsigned int j=N-1; j>0; j--)
+    {
+       // For V
+       V(0,0) = this->Z[j](0,0)*this->Z[j](1,1) - this->Z[j](0,1)*this->Z[j](1,0);
+       V(1,0) = this->Z[j](0,0);
+       V(2,0) = this->Z[j](0,1);
+       V(3,0) = this->Z[j](1,0);
+       V(4,0) = this->Z[j](1,1);
+       V(5,0) = 1.;
+
+       // For det
+       det = this->P[j].transpose()*V;
+
+       // For M
+       M(0,0) = this->U1[j].transpose()*V;
+       M(0,1) = this->U2[j].transpose()*V;
+       M(1,0) = this->U3[j].transpose()*V;
+       M(1,1) = this->U4[j].transpose()*V;
+       
+       // For Z[j-1] vector
+       this->Z[j-1].setZero();
+       Z[j-1] = M/det;
+    }
+  }
+}
+
+void AS::inner_parameters(const std::vector<std::vector<Real> >& ep,
+                          const Real frequency)
+{
+  // usage:
+  // exp(-iwt)
+  // zhat = i*omega*mu
+  // ep contains air layer, number N does not account for air layer
+  // computing sigma, A, impedivity and depth
+  assert(std::abs(frequency)>0);
+  this->N = ep.size()-1;
+  assert(N>=1);
+  this->sigma.resize(N+1);
+  this->epsilon.resize(N+1);
+  this->y_hat.resize(N+1);
+  this->z_hat.resize(N+1);
+  this->A.resize(N+1);
+  this->depth.resize(N+1);
+
+  // assignment
+  Matrix3D Rz, Rx, R_z, cond_;
+  const double omega = 2.*EM::pi*frequency;
+  assert(omega>0);
+  double sigxx, sigxy, sigxz, sigyx, sigyy, sigyz, sigzx, sigzy, sigzz;
+  for (unsigned int n=0; n<N+1; n++)
+  {
+    // For conductivity tensor
+    this->sigma[n].setZero();
+    double alfa = ep[n][3]/180.*pi;
+    double beta = ep[n][4]/180.*pi;
+    double gama = ep[n][5]/180.*pi;
+    Rz(0,0) = std::cos(alfa);     Rz(0,1) = -std::sin(alfa);     Rz(0,2) = 0.;
+    Rz(1,0) = std::sin(alfa);	  Rz(1,1) = std::cos(alfa);   	Rz(1,2) = 0.;
+    Rz(2,0) = 0.;                 Rz(2,1) = 0.;               	Rz(2,2) = 1.;
+    Rx(0,0) = 1.;                 Rx(0,1) = 0.;               	Rx(0,2) = 0.;
+    Rx(1,0) = 0.;                 Rx(1,1) = std::cos(beta);   	Rx(1,2) = -std::sin(beta);
+    Rx(2,0) = 0.;                 Rx(2,1) = std::sin(beta);   	Rx(2,2) = std::cos(beta);
+    R_z(0,0) = std::cos(gama);    R_z(0,1) = -std::sin(gama); 	R_z(0,2) = 0.;
+    R_z(1,0) = std::sin(gama);    R_z(1,1) = std::cos(gama);  	R_z(1,2) = 0.;
+    R_z(2,0) = 0.;                R_z(2,1) = 0.;              	R_z(2,2) = 1.;
+    cond_(0,0) = ep[n][0];        cond_(0,1) = 0.;            	cond_(0,2) = 0.;
+    cond_(1,0) = 0.;              cond_(1,1) = ep[n][1];      	cond_(1,2) = 0.;
+    cond_(2,0) = 0.;              cond_(2,1) = 0.;            	cond_(2,2) = ep[n][2];
+
+    this->sigma[n] = (Rz*Rx*R_z*cond_)*(R_z.transpose()*Rx.transpose()*Rz.transpose());
+
+    // For epsilon
+    this->epsilon[n].setZero();
+    epsilon[n](0,0) = ep[n][6];     epsilon[n](0,1) = ep[n][7];     epsilon[n](0,2) = ep[n][8];
+    epsilon[n](1,0) = ep[n][9];     epsilon[n](1,1) = ep[n][10];    epsilon[n](1,2) = ep[n][11];
+    epsilon[n](2,0) = ep[n][12];    epsilon[n](2,1) = ep[n][13];    epsilon[n](2,2) = ep[n][14];
+    epsilon[n] = epsilon[n]*EM::epsilon0;
+
+    // For adimitivity
+    this->y_hat[n].setZero();
+    this->y_hat[n] = sigma[n]-EM::II*omega*epsilon[n];
+
+    // Axx = A(0,0), Axy = A(0,1), Ayx = A(1,0), Ayy = A(1,1)
+    this->A[n].setZero();
+    this->A[n](0,0) = y_hat[n](0,0)-y_hat[n](0,2)*y_hat[n](2,0)/y_hat[n](2,2);
+    this->A[n](0,1) = y_hat[n](0,1)-y_hat[n](0,2)*y_hat[n](2,1)/y_hat[n](2,2);
+    this->A[n](1,0) = y_hat[n](1,0)-y_hat[n](1,2)*y_hat[n](2,0)/y_hat[n](2,2);
+    this->A[n](1,1) = y_hat[n](1,1)-y_hat[n](1,2)*y_hat[n](2,1)/y_hat[n](2,2);
+    // Once Axy = 0, Ayx must be 0. 
+    if(std::abs(this->A[n](1,0))<TOL)
+       if(!(std::abs(this->A[n](0,1))<TOL))
+       {
+         std::cout << "Input error!" << '\n'
+                   << "Relative permitivity tensor should be symmetrical, please check input file.";
+         std::abort();
+       }
+    
+    // For impedivity
+    const double mu = ep[n][15]*EM::mu0;
+    this->z_hat[n] = EM::II*omega*mu;
+
+    // For depth
+    this->depth[n] =  ep[n][16];
+  }
+
+  // Computing height of each layer h
+  this->h.resize(N+1);
+  h[0] = 1E50;
+  h[N] = 1E50;
+  for(unsigned int n=1; n<N; n++)
+  {
+    assert(depth[n]>depth[n-1]);
+    this->h[n] = this->depth[n] - this->depth[n-1];
+  }
+
+  // Computing K1,K2
+  this->K1.resize(N+1);
+  this->K2.resize(N+1);
+  EM::Dcomplex a = 0.;
+  EM::Dcomplex b = 0.;
+  EM::Dcomplex K12 = 0.;
+  EM::Dcomplex K22 = 0.;
+  for(unsigned int n=0; n<N+1; n++)
+  {
+    if(std::abs(this->A[n](1,0))<TOL)
+    {
+      // K12 = K1[n]^2; K22 = K2[n]^2
+      K12 = -z_hat[n]*A[n](0,0);
+      K22 = -z_hat[n]*A[n](1,1);
+    }
+    else
+    {
+      a = (A[n](0,0)-A[n](1,1))*(A[n](0,0)-A[n](1,1));
+      b = std::sqrt(a+4.*A[n](0,1)*A[n](1,0));
+      K12 = -0.5*z_hat[n]*(A[n](0,0)+A[n](1,1)+b);
+      K22 = -0.5*z_hat[n]*(A[n](0,0)+A[n](1,1)-b);
+    }
+      // Computing K1[n]
+      if(std::sqrt(K12).real()>0.)
+        this->K1[n] = std::sqrt(K12);
+      else
+        this->K1[n] = -std::sqrt(K12);
+      // Computing K2[n]
+      if(std::sqrt(K22).real()>0.)
+        this->K2[n] = std::sqrt(K22);
+      else
+        this->K2[n] = -std::sqrt(K22);
+  }
+
+  // Calculating vector Q1,Q2,gama1,gama2,D1-D5
+  this->Q1.resize(N+1);
+  this->Q2.resize(N+1);
+  this->gama1.resize(N+1);
+  this->gama2.resize(N+1);
+  this->D1.resize(N+1);
+  this->D2.resize(N+1);
+  this->D3.resize(N+1);
+  this->D4.resize(N+1);
+  this->D5.resize(N+1);
+  double h_n = 0.;
+  EM::Dcomplex z_hat_n, A10, A11, k1, k2;
+  z_hat_n = A10 = A11 = k1 = k2 = 0.;
+  for(unsigned int n=0; n<N+1; n++)
+  {
+    h_n = h[n];
+    z_hat_n = z_hat[n];
+    A10 = A[n](1,0);
+    A11 = A[n](1,1);
+    k1 = K1[n];
+    k2 = K2[n];
+    //For decoupled layer.
+    if(std::abs(A10)<TOL)
+    {
+      // Setting to any float number to avoide inf
+      this->Q1[n] = 0.;
+      this->Q2[n] = 0.;
+    }
+    else
+    {
+      // for Q1 and Q2
+      this->Q1[n] = (z_hat_n*A10)/(k1*k1+z_hat_n*A11);
+      this->Q2[n] = (z_hat_n*A10)/(k2*k2+z_hat_n*A11);
+    }
+    // for D1-D5
+    this->D1[n] = 1.+std::exp(-2.*(k1+k2)*h_n)-std::exp(-2.*k1*h_n)-std::exp(-2.*k2*h_n);
+    this->D2[n] = 1.+std::exp(-2.*(k1+k2)*h_n)+std::exp(-2.*k1*h_n)+std::exp(-2.*k2*h_n);
+    this->D3[n] = 1.-std::exp(-2.*(k1+k2)*h_n)+std::exp(-2.*k1*h_n)-std::exp(-2.*k2*h_n);
+    this->D4[n] = 1.-std::exp(-2.*(k1+k2)*h_n)-std::exp(-2.*k1*h_n)+std::exp(-2.*k2*h_n);
+    this->D5[n] = 4.*std::exp(-(k1+k2)*h_n);
+    // for gama1 and gama2
+    this->gama1[n] = -k1/z_hat_n;
+    this->gama2[n] = -k2/z_hat_n;
+  }
+
+  // Calculating vector P, U1-U4
+  this->P.resize(N+1);
+  this->U1.resize(N+1);
+  this->U2.resize(N+1);
+  this->U3.resize(N+1);
+  this->U4.resize(N+1);
+  EM::Dcomplex r1, r2, q1, q_2, q;//q_2 = 1./q2, q = q1/q2;
+  EM::Dcomplex d1, d2, d3, d4, d5;
+  r1 = r2 = q1 = q_2 = 0.;
+  d1 = d2 = d3 = d4 = d5 = 0.;
+  for(unsigned int n=0; n<N+1; n++)
+  {
+    k1 = K1[n];     k2 = K2[n];
+    r1 = gama1[n];  r2 = gama2[n];
+    d1 = D1[n];     d2 = D2[n];
+    d3 = D3[n];     d4 = D4[n];
+    d5 = D5[n];
+    if(std::abs(this->A[n](1,0))<TOL)
+    {
+      q1 = 0.;
+      q_2 = 0.;
+      q = 0.;
+    }
+    else
+    {
+      q1 = Q1[n];
+      q_2 = 1./Q2[n];
+      q = q1*q_2;
+    }
+    // For vector P
+    this->P[n](0,0) = r1*r2*d1*(q-1.);
+    this->P[n](1,0) = q1*(r2*d3-r1*d4);
+    this->P[n](2,0) = q*r2*d3-r1*d4;
+    this->P[n](3,0) = r2*d3-q*r1*d4;
+    this->P[n](4,0) = q_2*(r2*d3-r1*d4);
+    this->P[n](5,0) = (q-1.)*d2;
+
+    // Intermediate variable
+    EM::Dcomplex qq = (q-1.)*r1*r2;
+
+    // For Vector6C U1
+    this->U1[n](0,0) = (r2*d3-r1*d4)*q_2;
+    this->U1[n](1,0) = (q*d1*(r1*r1+r2*r2)+((q*q+1.)*d5-2.*q*d2)*r1*r2)/qq;
+    this->U1[n](2,0) = (d1*(q*r2*r2+r1*r1)+(q+1.)*(d5-d2)*r1*r2)*q_2/qq;
+    this->U1[n](3,0) = (d1*(q*r1*r1+r2*r2)+(q+1.)*(d5-d2)*r1*r2)*q_2/qq;
+    this->U1[n](4,0) = (d1*(r1*r1+r2*r2)+2.*(d5-d2)*r1*r2)*q_2*q_2/qq;
+    this->U1[n](5,0) = (r2*d4-r1*d3)/(r1*r2)*q_2;
+
+    // For Vector6C U2
+    this->U2[n](0,0) = q*r1*d4-r2*d3;
+    this->U2[n](1,0) = (-q1*((q*r1*r1+r2*r2)*d1+(d5-d2)*(q+1.)*r1*r2))/qq;
+    this->U2[n](2,0) = ((q*q+1.)*r1*r2*d2-q*((r1*r1+r2*r2)*d1+2.*r1*r2*d5))/qq;
+    this->U2[n](3,0) = (-d1*(q*q*r1*r1+r2*r2)-2.*q*r1*r2*(d5-d2))/qq;
+    this->U2[n](4,0) = (-d1*(q*r1*r1+r2*r2)-(d5-d2)*(q+1.)*r1*r2)*q_2/qq;
+    this->U2[n](5,0) = (q*r1*d3-r2*d4)/(r1*r2);
+
+    // For Vector6C U3
+    this->U3[n](0,0) = r1*d4-q*r2*d3;
+    this->U3[n](1,0) = -(q1*((r1*r1+q*r2*r2)*d1+(d5-d2)*(q+1.)*r1*r2))/qq;
+    this->U3[n](2,0) = -(d1*(r1*r1+q*q*r2*r2)+2.*q*r1*r2*(d5-d2))/qq;
+    this->U3[n](3,0) = ((q*q+1.)*r1*r2*d2-q*((r1*r1+r2*r2)*d1+2.*r1*r2*d5))/qq;
+    this->U3[n](4,0) = -(d1*(r1*r1+q*r2*r2)+(d5-d2)*(q+1.)*r1*r2)*q_2/qq;
+    this->U3[n](5,0) = (r1*d3-q*r2*d4)/(r1*r2);
+
+    // For Vector6C U4
+    this->U4[n](0,0) = q1*(r2*d3-r1*d4);
+    this->U4[n](1,0) = (q1*q1*((r1*r1+r2*r2)*d1+2.*r1*r2*(d5-d2)))/qq;
+    this->U4[n](2,0) = (q1*((r1*r1+q*r2*r2)*d1+(d5-d2)*(q+1.)*r1*r2))/qq;
+    this->U4[n](3,0) = (q1*((q*r1*r1+r2*r2)*d1+(d5-d2)*(q+1.)*r1*r2))/qq;
+    this->U4[n](4,0) = (q*d1*(r1*r1+r2*r2)+r1*r2*((q*q+1.)*d5-2.*q*d2))/qq;
+    this->U4[n](5,0) = q1*(r2*d4-r1*d3)/(r1*r2);
+  }
+
+  // Calculating vector
+  return;
+}
