@@ -18,9 +18,12 @@ Copyright 2023, Huang Chen
 2023-02-20
 -----------------------------------------------------------------------------
 
-1. To generate the program RMT1DA using (under the example folder):
+1. To generate the program RMT1DA using (in one of the example folder):
    make clean
    make RMT1DA
+
+   !!!Notation: Before doing the above operation, please unzip the compressed
+      file "eigen" in the folder "contrib".
 
 2. Run examples
    1) enter the example folder
