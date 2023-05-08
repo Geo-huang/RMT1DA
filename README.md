@@ -1,53 +1,11 @@
 # RMT1DA
-----------------------Description -------------------------------------------
-Source codes for manuscript "A stable analytical expression for magnetotelluric/
-radiomagnetotelluric impedances in anisotropic layered Earth models"
 
-----------------------COPYRIGHTS---------------------------------------------
-These programs may be freely redistributed under the condition that the 
-copyright notices  are not removed, and no compensation is received.  Private, 
-research, and institutional use is free.  You may distribute modified versions 
-of this code UNDER THE CONDITION THAT THIS CODE AND ANY MODIFICATIONS MADE TO 
-IT IN THE SAME FILE REMAIN UNDER COPYRIGHT OF THE ORIGINAL AUTHOR, BOTH SOURCE 
-AND OBJECT CODE ARE MADE FREELY AVAILABLE WITHOUT CHARGE, AND CLEAR NOTICE IS 
-GIVEN OF THE MODIFICATIONS.  Distribution of this code as part of a commercial 
-system is permissible ONLY BY DIRECT ARRANGEMENT WITH THE AUTHOR. If you use 
-RMT1DA, and especially if you use it to accomplish real work, PLEASE SEND ME AN 
-EMAIL. 
+Source codes for manuscript entitled "A stable analytical expression for magnetotelluric/
+radiomagnetotelluric impedances in anisotropic layered Earth models".
 
-Copyright 2023, Huang Chen
-2023-02-20
------------------------------------------------------------------------------
+Please read the "User_mannual.txt" before using the codes.
 
-1. To generate the program RMT1DA using (under the example folder):
-   make clean
-   make RMT1DA
 
-2. Run examples
-   1) enter the example folder
-   2) build up a configuration file *.config for your example. 
-       The *.config file has the following fixed format:
 
-    **********************************************************************************
-    *  n_layers                     // numbers of 1D layers including the air layer.
-    *  sigma                        // conductivity tensor(sigma), 
-                                    // sigma_xx,sigma_yy,sigma_zz,alfa_S,alfa_D,alfa_L
-    *  epsilon_r 		     // relative dielectric permittivity tensor (eps),
-                                    // eps_xx,xy,xz,eps_yx,yy,yz,epszx,zy,zz.
-    *  mu_r d(in km)                // relative magnetic susceptivility (mu_r) 
-    				     // (d) depth is from air-earth interface(z=0) to bottom 
-                                    // layer in each 1D layer
-    *  n_frequencies                // the number of observing frequencies 
-    *  frequency                    // observation frequency                      
-    **********************************************************************************
-   3) Run RMT1DA *.config
-      It writes the apparent resistivity and phase responses into file "results.dat"
 
-3. For possible errors, please contract:
 
-     Huang Chen
-     Chongqing University,
-     Chongqing, 400044, China
-     chenhuang@cqu.edu.cn
-
-     2023-02-20
